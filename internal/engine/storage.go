@@ -15,9 +15,12 @@ import (
 )
 
 // GCSLoader reads exact object names from the gateway's three allowed sources.
-type GCSLoader struct{ Client *storage.Client }
+type GCSLoader struct {
+	Client  *storage.Client
+	Buckets map[string]string
+}
 
-func source(key string) (bucket, object string, err error) {
+func source(key string) (string, string, error) {
 	prefix, rest, ok := strings.Cut(key, "/")
 	if !ok || rest == "" {
 		return "", "", imagor.ErrInvalid
@@ -29,13 +32,13 @@ func source(key string) (bucket, object string, err error) {
 	}
 	switch prefix {
 	case "photos":
-		return "icco-cloud", key, nil
+		return prefix, key, nil
 	case "wallpapers":
-		return "iccowalls", rest, nil
+		return prefix, rest, nil
 	case "etu":
 		kind, _, ok := strings.Cut(rest, "/")
 		if ok && (kind == "notes" || kind == "profiles" || kind == "audios") {
-			return "etu-images", rest, nil
+			return prefix, rest, nil
 		}
 	}
 	return "", "", imagor.ErrInvalid
@@ -48,6 +51,10 @@ func (l GCSLoader) Get(r *http.Request, key string) (*imagor.Blob, error) {
 	if err != nil {
 		return nil, err
 	}
+	bucket = l.Buckets[bucket]
+	if bucket == "" {
+		return nil, imagor.ErrInvalid
+	}
 	object := l.Client.Bucket(bucket).Object(key)
 	attrs, err := object.Attrs(ctx)
 	if errors.Is(err, storage.ErrObjectNotExist) {
@@ -59,8 +66,7 @@ func (l GCSLoader) Get(r *http.Request, key string) (*imagor.Blob, error) {
 	if attrs.Size > 100<<20 {
 		return nil, imagor.ErrMaxSizeExceeded
 	}
-	// Pin the read to the metadata generation. Preserve actual object names
-	// (spaces, plus signs, Unicode); they are not filesystem-normalized.
+	// Read the exact object generation described by attrs.
 	object = object.Generation(attrs.Generation)
 	blob := imagor.NewBlob(func() (io.ReadCloser, int64, error) {
 		reader, err := object.NewReader(ctx)

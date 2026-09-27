@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"net/http"
 	"net/url"
 	"regexp"
 	"slices"
@@ -29,7 +30,7 @@ type requestError struct {
 
 func (e *requestError) Error() string { return e.message }
 
-func invalid(message string) error { return &requestError{400, message} }
+func invalid(message string) error { return &requestError{http.StatusBadRequest, message} }
 
 // Request validates the public URL before constructing any Imagor parameters.
 // Image contains a decoded logical source path, never a user-selected URL/bucket.
@@ -46,7 +47,7 @@ func Request(u *url.URL, accept, mediaKey string, now time.Time) (imagorpath.Par
 		}
 	}
 	if len(parts) < 2 || !slices.Contains([]string{"photos", "wallpapers", "etu"}, parts[0]) {
-		return out, &requestError{404, "Unknown source"}
+		return out, &requestError{http.StatusNotFound, "Unknown source"}
 	}
 	p, err := url.ParseQuery(u.RawQuery)
 	if err != nil {
@@ -62,18 +63,18 @@ func Request(u *url.URL, accept, mediaKey string, now time.Time) (imagorpath.Par
 	}
 	if parts[0] == "etu" {
 		if len(parts) < 3 || !slices.Contains([]string{"notes", "profiles", "audios"}, parts[1]) {
-			return out, &requestError{404, "Unknown media path"}
+			return out, &requestError{http.StatusNotFound, "Unknown media path"}
 		}
 		expiry := p.Get("exp")
 		exp, err := strconv.ParseInt(expiry, 10, 64)
 		if mediaKey == "" || err != nil || !expiryPattern.MatchString(expiry) || exp <= now.Unix() || exp > now.Unix()+86400 {
-			return out, &requestError{403, "Expired or missing media capability"}
+			return out, &requestError{http.StatusForbidden, "Expired or missing media capability"}
 		}
 		mac := hmac.New(sha256.New, []byte(mediaKey))
 		mac.Write([]byte(u.EscapedPath() + "\n" + expiry))
 		sig, err := hex.DecodeString(p.Get("sig"))
 		if err != nil || !hmac.Equal(sig, mac.Sum(nil)) {
-			return out, &requestError{403, "Invalid media capability"}
+			return out, &requestError{http.StatusForbidden, "Invalid media capability"}
 		}
 	}
 	// Validate even ignored numeric options so malformed requests cannot hide
