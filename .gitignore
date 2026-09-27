@@ -1,0 +1,7 @@
+/.env
+/cache/
+/images
+/coverage*
+*.pem
+*-key.json
+creds.json

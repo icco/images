@@ -1,0 +1,19 @@
+name: Test Go
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build and test with native libvips and coverage threshold
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: build
+          cache-from: type=gha,scope=tests
+          cache-to: type=gha,scope=tests,mode=max

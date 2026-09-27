@@ -1,0 +1,30 @@
+version: 2
+project_name: images
+# Releases provide source and changelogs. The native binary ships in GHCR,
+# built against the matching libvips runtime rather than as a static archive.
+builds:
+  - skip: true
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^feat'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix'
+      order: 1
+    - title: Other Changes
+      order: 999
+  filters:
+    exclude: ['^docs:', '^test:', '^chore:', '^style:']
+release:
+  github:
+    owner: icco
+    name: images
+  mode: replace
+  footer: |
+    ---
+    Run the container with `docker pull ghcr.io/icco/images:main`.
+
+    **Full Changelog**: https://github.com/icco/images/compare/{{ .PreviousTag }}...{{ .Tag }}
