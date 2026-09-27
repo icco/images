@@ -9,8 +9,7 @@ on:
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-latest
-    container: ghcr.io/cshum/imagor-base:vips8.18.5-r14-dev
+    runs-on: ubuntu-24.04
     env:
       CGO_ENABLED: "1"
       PKG_CONFIG_PATH: /opt/imagor/lib/pkgconfig
@@ -23,6 +22,13 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v7
+      - name: Install native SDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvips-dev
+          sdk=$(docker create ghcr.io/cshum/imagor-base:vips8.18.5-r14-dev)
+          trap 'docker rm "$sdk"' EXIT
+          sudo docker cp "$sdk:/opt/imagor" /opt/imagor
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -30,5 +36,5 @@ jobs:
         with:
           languages: go
           build-mode: manual
-      - run: go build -buildvcs=false ./...
+      - run: go build -a ./...
       - uses: github/codeql-action/analyze@v4
