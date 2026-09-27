@@ -48,7 +48,7 @@ func TestGCSLoader(t *testing.T) {
 				option.WithHTTPClient(&http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
 					status := tt.metadataStatus
 					body := `{"error":{"code":403,"message":"test error"}}`
-					if !strings.Contains(r.URL.Path, "/b/icco-cloud/o/photos/a b+猫.png") {
+					if !strings.Contains(r.URL.Path, "/b/test-photos/o/photos/a b+猫.png") {
 						t.Errorf("unexpected object path: %s", r.URL.Path)
 					}
 					if r.URL.Query().Get("alt") == "media" {
@@ -60,7 +60,7 @@ func TestGCSLoader(t *testing.T) {
 							body = data.String()
 						}
 					} else if status == 200 {
-						metadata, marshalErr := json.Marshal(map[string]string{"bucket": "icco-cloud", "name": "photos/a b+猫.png", "generation": "7", "size": strconv.FormatInt(tt.size, 10), "contentType": "image/png", "contentEncoding": tt.encoding})
+						metadata, marshalErr := json.Marshal(map[string]string{"bucket": "test-photos", "name": "photos/a b+猫.png", "generation": "7", "size": strconv.FormatInt(tt.size, 10), "contentType": "image/png", "contentEncoding": tt.encoding})
 						if marshalErr != nil {
 							return nil, marshalErr
 						}
@@ -72,7 +72,7 @@ func TestGCSLoader(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer client.Close()
-			loader := GCSLoader{Client: client}
+			loader := GCSLoader{Client: client, Buckets: map[string]string{"photos": "test-photos"}}
 			r := httptest.NewRequestWithContext(ctx, "GET", "/", nil)
 			blob, err := loader.Get(r, "photos/a b+猫.png")
 			if err == nil {
@@ -92,6 +92,9 @@ func TestGCSLoader(t *testing.T) {
 			}
 			if _, err := loader.Get(r, "other/secret"); err == nil {
 				t.Fatal("accepted unknown source")
+			}
+			if _, err := loader.Get(r, "wallpapers/a.png"); err == nil {
+				t.Fatal("accepted unconfigured bucket")
 			}
 		})
 	}

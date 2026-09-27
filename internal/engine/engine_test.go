@@ -176,16 +176,16 @@ func TestNativeProcessingAndPrivateDeletion(t *testing.T) {
 
 func TestSourceMapping(t *testing.T) {
 	for _, tt := range []struct{ path, bucket, object string }{
-		{"photos/2026/a b+猫.jpg", "icco-cloud", "photos/2026/a b+猫.jpg"},
-		{"wallpapers/a.jpg", "iccowalls", "a.jpg"},
-		{"etu/profiles/user/avatar", "etu-images", "profiles/user/avatar"},
+		{"photos/2026/a b+猫.jpg", "photos", "photos/2026/a b+猫.jpg"},
+		{"wallpapers/a.jpg", "wallpapers", "a.jpg"},
+		{"etu/profiles/user/avatar", "etu", "profiles/user/avatar"},
 	} {
 		bucket, object, err := source(tt.path)
 		if err != nil || bucket != tt.bucket || object != tt.object {
 			t.Fatalf("%s: %s %s %v", tt.path, bucket, object, err)
 		}
 	}
-	for _, path := range []string{"icco-cloud/secret", "https://example.com/a", "photos/../secret", "etu/other/a", "etu/notes"} {
+	for _, path := range []string{"other-bucket/secret", "https://example.com/a", "photos/../secret", "etu/other/a", "etu/notes"} {
 		if _, _, err := source(path); err == nil {
 			t.Fatalf("accepted %s", path)
 		}
