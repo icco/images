@@ -2,7 +2,6 @@
 package engine
 
 import (
-	"context"
 	"path/filepath"
 	"time"
 
@@ -26,7 +25,7 @@ func New(loader imagor.Loader, cacheDir string, concurrency int64, logger *zap.L
 			vipsprocessor.WithMaxFilterOps(10),
 		)}
 		if cacheDir != "" {
-			app.ResultStorages = []imagor.Storage{filestorage.New(filepath.Join(cacheDir, "result"), filestorage.WithExpiration(30*24*time.Hour))}
+			app.ResultStorages = []imagor.Storage{filestorage.New(filepath.Join(cacheDir, "result"))}
 		}
 		app.GetResultKey = resultKey
 		app.ProcessConcurrency = concurrency
@@ -36,13 +35,4 @@ func New(loader imagor.Loader, cacheDir string, concurrency int64, logger *zap.L
 		app.Logger = logger
 	})
 	return &Engine{Imagor: app, loader: loader}
-}
-
-// Prune removes expired public results, including entries never requested again.
-// Called on startup and daily by the service, not by a host-specific cron job.
-func Prune(ctx context.Context, cacheDir string, now time.Time) error {
-	if cacheDir == "" {
-		return nil
-	}
-	return pruneFiles(ctx, filepath.Join(cacheDir, "result"), now.Add(-30*24*time.Hour))
 }
