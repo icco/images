@@ -42,4 +42,5 @@ The issuer shares the gateway's signing key; transformation parameters are unsig
 docker build -t images .             # Race tests, 80% coverage floor, vet, build
 docker build --target lint .         # golangci-lint
 go test -race ./internal/gateway     # No native dependencies required
+brew install vips                    # Enables go build ./... and go test ./... outside Docker
 ```
