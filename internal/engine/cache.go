@@ -153,7 +153,7 @@ func (s *resultStorage) check(ctx context.Context, key string) error {
 		return nil
 	}
 	for _, name := range []string{key, key + versionSuffix} {
-		if err := s.FileStorage.Delete(ctx, name); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := s.Delete(ctx, name); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
