@@ -36,22 +36,6 @@ The issuer shares the gateway's signing key; transformation parameters are unsig
 - **Exceptions:** Etu bypasses disk caching and returns `private, no-store`.
   SVG passthrough bypasses the disk result cache.
 
-## Running
-
-Use `ghcr.io/icco/images:main`. Set all three bucket variables above and provide
-Google credentials with object-read access to those buckets.
-
-| Variable | Purpose / default |
-| --- | --- |
-| `MEDIA_SIGNING_KEY` | Required unless a key file is supplied |
-| `MEDIA_SIGNING_KEY_FILE` | Key file; overrides `MEDIA_SIGNING_KEY` |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Optional credentials file; otherwise uses Application Default Credentials |
-| `PORT` | `8080` |
-| `CACHE_DIR` | `/cache` |
-
-Mount a cache volume writable by UID 1000 to persist results across restarts.
-`GET /healthz` and `images healthcheck` check service readiness, not bucket access.
-
 ## Development
 
 ```sh
