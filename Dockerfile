@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.5-r14
-FROM golang:1.27.1-bookworm AS go
+FROM golang:1.27.1-trixie AS go
 FROM ${BASE_IMAGE}-dev AS development
 COPY --from=go /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go CGO_ENABLED=1
