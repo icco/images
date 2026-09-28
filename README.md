@@ -24,9 +24,24 @@ using `MEDIA_SIGNING_KEY`, shared with the application issuing URLs. Expiry must
 transformation parameters may change without resigning. Etu responses are
 `private, no-store` and bypass disk caches. The gateway processes images only.
 
-Public results expire after 30 days; the service cleans `/cache/result` daily.
-Processing allows two concurrent transforms, 20 queued requests, and 25 seconds
-per request. GCS objects over 100 MiB are rejected by stored size; libvips limits
+Public requests check GCS metadata before reading the result cache. Cache keys
+include the bucket, object generation, metageneration, and transformation, so
+replacing an object or changing its metadata invalidates its cached variants on
+their next request. Deletions and metadata lookup failures do not serve stale
+disk results. Cache misses reuse the metadata lookup and read the exact generation
+used for the key. This adds one GCS metadata request per public request reaching
+the gateway, including cache hits; unchanged images still avoid downloading and
+processing the source.
+
+Public HTTP responses remain cacheable for one day, with seven days of
+stale-while-revalidate. Clients and shared caches may therefore show older images
+until they contact the gateway. SVG originals bypass the disk result cache.
+Public results expire after 30 days; the service cleans `/cache/result` on startup
+and daily, including superseded generations. The first deployment of versioned
+keys starts a cold result cache; existing files age out through the same cleanup.
+Processing allows two concurrent transforms, 20 queued requests, and a 25-second
+Imagor request timeout. The preceding metadata lookup has a 20-second timeout.
+GCS objects over 100 MiB are rejected by stored size; libvips limits
 decoding to 80 million pixels across frames and processing to 200 animation frames.
 
 ## Configuration
