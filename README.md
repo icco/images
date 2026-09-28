@@ -1,7 +1,6 @@
 # images
 
-A Go image gateway that embeds Imagor 1.9.6 and libvips, reads Google Cloud
-Storage objects, and caches public transformations.
+A Go image gateway for Google Cloud Storage, powered by Imagor and libvips.
 
 ## URLs
 
@@ -11,54 +10,31 @@ Storage objects, and caches public transformations.
 | `/wallpapers/example.png` | `WALLPAPERS_BUCKET` | `example.png` |
 | `/etu/notes/id/image?exp=…&sig=…` | `MEDIA_BUCKET` | `notes/id/image` |
 
-Parameters: `w`, `h`, `q`, `fit=max|clip|crop`, `ar=2:1`,
-`crop=entropy|faces|focalpoint|faces,focalpoint`, `fp-x`, `fp-y`, and
-`fm=jpeg|jpg|png|webp|avif|gif|svg`. Legacy `auto` is accepted.
-Width defaults to 2560 and rounds up to a responsive size (maximum 4096);
-quality rounds to five. Output defaults to WebP when accepted, JPEG otherwise.
-GIF animation and SVG originals are preserved. Smart crops use libvips attention,
-not face detection. AVIF requires `fm=avif`.
+Add parameters such as `?w=800&fit=crop&ar=2:1&fm=webp`:
 
-Etu requires HMAC-SHA256 hex over **encoded pathname + newline + Unix expiry**,
-using `MEDIA_SIGNING_KEY`, shared with the application issuing URLs. Expiry must be within the next 24 hours;
-transformation parameters may change without resigning. Etu responses are
-`private, no-store` and bypass disk caches. The gateway processes images only.
+- `w`, `h`, `q`: width defaults to 2560 and rounds up to a supported size (max 4096);
+  quality defaults to 80 and rounds to multiples of five (minimum 5). No upscaling.
+- `fit=max|clip|crop`, `ar`, `crop`, `fp-x`, `fp-y`: sizing and cropping.
+  Smart crops use libvips attention, not face detection.
+- `fm=jpeg|jpg|png|webp|avif|gif|svg`: output format. By default, `.gif` stays animated
+  GIF and `.svg` passes through; other paths use WebP when accepted, otherwise JPEG.
+  Legacy `auto` is ignored. See [parameter validation](internal/gateway/request.go).
 
-Public requests check GCS metadata before reading the result cache. Cache keys
-include the bucket, object generation, metageneration, and transformation, so
-replacing an object or changing its metadata invalidates its cached variants on
-their next request. Deletions and metadata lookup failures do not serve stale
-disk results. Cache misses reuse the metadata lookup and read the exact generation
-used for the key. This adds one GCS metadata request per public request reaching
-the gateway, including cache hits; unchanged images still avoid downloading and
-processing the source.
+Etu supports `notes/`, `profiles/`, and `audios/` paths but serves images only.
+Sign URLs with `sig = hex(HMAC-SHA256(key, encoded pathname + "\n" + exp))`, where
+`exp` is a Unix timestamp in seconds, in the future and at most 24 hours ahead.
+The issuer shares the gateway's signing key; transformation parameters are unsigned.
 
-Public HTTP responses remain cacheable for one day, with seven days of
-stale-while-revalidate. Clients and shared caches may therefore show older images
-until they contact the gateway. SVG originals bypass the disk result cache.
-Public results expire after 30 days; the service cleans `/cache/result` on startup
-and daily, including superseded generations. The first deployment of versioned
-keys starts a cold result cache; existing files age out through the same cleanup.
-Processing allows two concurrent transforms, 20 queued requests, and a 25-second
-Imagor request timeout. The preceding metadata lookup has a 20-second timeout.
-GCS objects over 100 MiB are rejected by stored size; libvips limits
-decoding to 80 million pixels across frames and processing to 200 animation frames.
+## Caching
 
-## Configuration
-
-| Variable | Purpose / default |
-| --- | --- |
-| `PHOTOS_BUCKET` | Required photos bucket |
-| `WALLPAPERS_BUCKET` | Required wallpapers bucket |
-| `MEDIA_BUCKET` | Required private-media bucket |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Optional ADC file; otherwise uses default Google credentials |
-| `MEDIA_SIGNING_KEY` | Required shared Etu key |
-| `MEDIA_SIGNING_KEY_FILE` | Optional key file; overrides the environment value |
-| `PORT` | `8080` |
-| `CACHE_DIR` | `/cache` |
-
-`GET /healthz` checks readiness after initialization, not GCS permissions.
-`images healthcheck` runs the container probe. SIGTERM drains HTTP requests.
+- **Public:** each request reaching the gateway checks GCS metadata. Disk cache keys
+  include source versions and transformations; replacements invalidate results,
+  and deletions or lookup failures return errors. Cache hits avoid downloads and
+  processing. Entries expire after 30 days, with startup and daily cleanup.
+- **HTTP:** public responses allow one day of caching plus seven days of
+  stale-while-revalidate, so browsers may show older images until revalidation.
+- **Exceptions:** Etu bypasses disk caching and returns `private, no-store`.
+  SVG passthrough bypasses the disk result cache.
 
 ## Development
 
@@ -67,16 +43,3 @@ docker build -t images .             # Race tests, 80% coverage floor, vet, buil
 docker build --target lint .         # golangci-lint
 go test -race ./internal/gateway     # No native dependencies required
 ```
-
-Tooling follows [icco/go-template](https://github.com/icco/go-template). Docker
-provides matching libvips build/runtime dependencies. Coverage measures
-`internal/...`; command startup wiring is built and vetted. CI publishes
-`ghcr.io/icco/images:main` and a commit-SHA tag using `GITHUB_TOKEN`.
-Pushing a `v*` tag creates a source release; start with `v1.0.0`.
-
-## Running
-
-Supply the required environment variables and Google credentials with object-read
-access to the configured buckets. Mount a writable volume at `CACHE_DIR` to retain
-public results across restarts. The container runs as UID 1000 and listens on port
-8080 by default. Keep the signing key stable; rotating it invalidates existing URLs.
