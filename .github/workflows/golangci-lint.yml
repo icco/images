@@ -10,7 +10,7 @@ jobs:
   golangci:
     name: lint
     runs-on: ubuntu-latest
-    container: ghcr.io/cshum/imagor-base:vips8.18.5-r14-dev
+    container: ghcr.io/cshum/imagor-base:vips8.18.6-r14-dev
     env:
       CGO_ENABLED: "1"
       PKG_CONFIG_PATH: /opt/imagor/lib/pkgconfig
