@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -64,8 +66,16 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = logger.Sync() }() // stderr may not support fsync.
+	// Slots also wait on GCS downloads, so allow more than one per CPU.
+	concurrency := int64(4 * runtime.GOMAXPROCS(0))
+	if value := os.Getenv("PROCESS_CONCURRENCY"); value != "" {
+		concurrency, err = strconv.ParseInt(value, 10, 64)
+		if err != nil || concurrency < 1 {
+			return fmt.Errorf("PROCESS_CONCURRENCY must be a positive integer: %q", value)
+		}
+	}
 	cache := env("CACHE_DIR", "/cache")
-	app := engine.New(engine.GCSLoader{Client: client, Buckets: buckets}, cache, logger)
+	app := engine.New(engine.GCSLoader{Client: client, Buckets: buckets}, cache, concurrency, logger)
 	if err := app.Startup(ctx); err != nil {
 		return err
 	}
