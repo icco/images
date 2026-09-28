@@ -25,7 +25,12 @@ func New(loader imagor.Loader, cacheDir string, concurrency int64, logger *zap.L
 			vipsprocessor.WithMaxFilterOps(10),
 		)}
 		if cacheDir != "" {
-			app.ResultStorages = []imagor.Storage{filestorage.New(filepath.Join(cacheDir, "result"))}
+			dir := filepath.Join(cacheDir, "result")
+			if resolver, ok := loader.(sourceResolver); ok {
+				app.ResultStorages = []imagor.Storage{newResultStorage(dir, resolver.resolve, logger)}
+			} else {
+				app.ResultStorages = []imagor.Storage{filestorage.New(dir)}
+			}
 		}
 		app.GetResultKey = resultKey
 		app.ProcessConcurrency = concurrency
@@ -34,5 +39,5 @@ func New(loader imagor.Loader, cacheDir string, concurrency int64, logger *zap.L
 		app.DisableParamsEndpoint = true
 		app.Logger = logger
 	})
-	return &Engine{Imagor: app, loader: loader}
+	return &Engine{Imagor: app}
 }

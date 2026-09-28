@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -72,16 +73,19 @@ func (l GCSLoader) resolve(ctx context.Context, key string) (*sourceObject, erro
 	return &sourceObject{key: image, bucket: bucket, object: object.Generation(attrs.Generation), attrs: attrs}, nil
 }
 
+func (s *sourceObject) version() string {
+	return fmt.Sprintf("%s\n%s\n%d\n%d", s.key, s.bucket, s.attrs.Generation, s.attrs.Metageneration)
+}
+
 // Get implements imagor.Loader without arbitrary URL or bucket access.
 func (l GCSLoader) Get(r *http.Request, key string) (*imagor.Blob, error) {
 	ctx := r.Context()
-	source, ok := ctx.Value(sourceContextKey{}).(*sourceObject)
-	if !ok || source.key != key {
-		var err error
-		source, err = l.resolve(ctx, key)
-		if err != nil {
-			return nil, err
-		}
+	source, err := l.resolve(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if ref, ok := ctx.Value(sourceContextKey{}).(*sourceRef); ok {
+		ref.set(source)
 	}
 	attrs := source.attrs
 	blob := imagor.NewBlob(func() (io.ReadCloser, int64, error) {
