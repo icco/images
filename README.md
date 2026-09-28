@@ -36,6 +36,10 @@ The issuer shares the gateway's signing key; transformation parameters are unsig
 - **Exceptions:** Etu bypasses disk caching and returns `private, no-store`.
   SVG passthrough bypasses the disk result cache.
 
+## Concurrency
+
+`PROCESS_CONCURRENCY` caps simultaneous fetch-and-decode work and defaults to four per available CPU. Up to 16 times that many uncached requests wait in a queue. Requests beyond the queue get 429, and requests still waiting after 25 seconds get 408.
+
 ## Development
 
 ```sh

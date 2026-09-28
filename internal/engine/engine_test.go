@@ -79,7 +79,7 @@ func TestNativeProcessingAndPrivateDeletion(t *testing.T) {
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32"><rect width="64" height="32" fill="red"/></svg>`)
 	l := &memoryLoader{data: map[string][]byte{"photos/a b+.png": pngData.Bytes(), "wallpapers/a.png": pngData.Bytes(), "photos/a.gif": gifData.Bytes(), "photos/a.svg": svg, "etu/notes/id/a.png": pngData.Bytes()}}
 	cache := t.TempDir()
-	app := New(l, cache, zap.NewNop())
+	app := New(l, cache, 2, zap.NewNop())
 	saved := make(chan struct{}, 20)
 	app.ResultStorages[0] = notifyingStorage{app.ResultStorages[0], saved}
 	if err := app.Startup(context.Background()); err != nil {
@@ -171,6 +171,58 @@ func TestNativeProcessingAndPrivateDeletion(t *testing.T) {
 	case <-saved:
 		t.Fatal("private result written to cache")
 	default:
+	}
+}
+
+type blockingLoader struct {
+	release <-chan struct{}
+	data    []byte
+}
+
+func (l blockingLoader) Get(r *http.Request, _ string) (*imagor.Blob, error) {
+	select {
+	case <-l.release:
+		return imagor.NewBlobFromBytes(l.data), nil
+	case <-r.Context().Done():
+		return nil, r.Context().Err()
+	}
+}
+
+func TestBurstIsQueuedNotRejected(t *testing.T) {
+	const concurrency = 2
+	release := make(chan struct{})
+	app := New(blockingLoader{release: release, data: []byte("image")}, "", concurrency, zap.NewNop())
+	// libvips cannot restart after another test's Shutdown, and the queue is independent of it.
+	app.Processors = []imagor.Processor{copyProcessor{}}
+	if err := app.Startup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := app.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	}()
+	h := gateway.Handler{Processor: app, MediaKey: "test-key"}
+	const burst = 16 * concurrency
+	codes := make(chan int, burst)
+	for i := range burst {
+		go func() {
+			r := httptest.NewRequestWithContext(t.Context(), "GET", "/wallpapers/"+strconv.Itoa(i)+".png?w=32", nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			codes <- w.Code
+		}()
+	}
+	select {
+	case code := <-codes:
+		t.Fatalf("request finished before any source loaded: %d", code)
+	case <-time.After(500 * time.Millisecond):
+	}
+	close(release)
+	for range burst {
+		if code := <-codes; code != 200 {
+			t.Fatalf("burst request: %d", code)
+		}
 	}
 }
 
