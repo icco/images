@@ -27,11 +27,7 @@ The issuer shares the gateway's signing key; transformation parameters are unsig
 
 ## Caching
 
-- **Public:** each request reaching the gateway checks GCS metadata. Disk cache keys
-  include source versions and transformations; replacements invalidate results,
-  and deletions or lookup failures return errors. Cache hits avoid downloads and
-  processing. Entries never expire, and results for replaced sources stay on disk
-  unused until someone deletes them from `CACHE_DIR`.
+- **Public:** cache hits come from disk without waiting on GCS. After each hit, the gateway checks the source's GCS metadata in the background and deletes the result if the source was replaced or deleted, so a changed image is served stale once and renders fresh on the next request. Hits keep serving while GCS is unreachable. Entries never expire, and deleting files under `CACHE_DIR` is safe at any time.
 - **HTTP:** public responses allow one day of caching plus seven days of
   stale-while-revalidate, so browsers may show older images until revalidation.
 - **Exceptions:** Etu bypasses disk caching and returns `private, no-store`.
