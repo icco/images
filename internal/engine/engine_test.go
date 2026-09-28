@@ -15,7 +15,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -274,11 +273,16 @@ func TestAgedResultIsStillServed(t *testing.T) {
 		t.Fatal("result not cached")
 	}
 	old := time.Now().Add(-365 * 24 * time.Hour)
-	err := filepath.WalkDir(cache, func(path string, _ fs.DirEntry, err error) error {
+	root, err := os.OpenRoot(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	err = fs.WalkDir(root.FS(), ".", func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		return os.Chtimes(path, old, old)
+		return root.Chtimes(path, old, old)
 	})
 	if err != nil {
 		t.Fatal(err)
