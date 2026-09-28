@@ -1,3 +1,6 @@
+// HTTP/2 multiplexes every GCS download over one connection, capping them near 32 MB/s.
+//go:debug http2client=0
+
 // Command images serves the image gateway with embedded Imagor and libvips.
 package main
 
@@ -89,7 +92,7 @@ func run(ctx context.Context) error {
 		Handler:           gateway.Handler{Processor: app, MediaKey: key},
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      50 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    16 << 10,
 	}
