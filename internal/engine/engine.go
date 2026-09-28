@@ -35,7 +35,7 @@ func New(loader imagor.Loader, cacheDir string, concurrency int64, logger *zap.L
 		app.GetResultKey = resultKey
 		app.ProcessConcurrency = concurrency
 		app.ProcessQueueSize = 16 * concurrency
-		app.RequestTimeout = 25 * time.Second
+		app.RequestTimeout = 45 * time.Second
 		app.DisableParamsEndpoint = true
 		app.Logger = logger
 	})
