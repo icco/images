@@ -16,14 +16,15 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/cshum/imagor"
 	"github.com/cshum/imagor/imagorpath"
-	"github.com/cshum/imagor/storage/filestorage"
 	"github.com/icco/images/internal/gateway"
+	"go.uber.org/zap"
 	"google.golang.org/api/option"
 )
 
@@ -115,20 +116,24 @@ func TestPublicSourceInvalidation(t *testing.T) {
 	saved := make(chan error, 10)
 	bucket := "test-photos"
 	// Each request gets a fresh engine to prove hits come from persistent storage,
-	// rather than Imagor's in-flight request coalescing.
+	// rather than Imagor's in-flight request coalescing. get waits for revalidation.
 	get := func(path string) *httptest.ResponseRecorder {
 		loader := GCSLoader{Client: client, Buckets: map[string]string{"photos": bucket, "etu": "test-media"}}
+		results := newResultStorage(cache, loader.resolve, zap.NewNop())
 		app := imagor.New(func(app *imagor.Imagor) {
 			app.Loaders = []imagor.Loader{loader}
 			app.Processors = []imagor.Processor{copyProcessor{}}
 			app.GetResultKey = resultKey
-			app.ResultStorages = []imagor.Storage{cacheSaveNotifier{filestorage.New(cache), saved}}
+			app.ResultStorages = []imagor.Storage{cacheSaveNotifier{results, saved}}
 		})
-		h := gateway.Handler{Processor: &Engine{Imagor: app, loader: loader}, MediaKey: "test-key"}
+		h := gateway.Handler{Processor: &Engine{Imagor: app}, MediaKey: "test-key"}
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), "GET", path, nil))
+		results.wg.Wait()
 		return w
 	}
+	// A miss resolves the source in the loader and a hit revalidates it afterwards,
+	// so every public request costs exactly one metadata call.
 	check := func(path, wantGeneration string, wantDownload bool) {
 		t.Helper()
 		mu.Lock()
@@ -164,18 +169,23 @@ func TestPublicSourceInvalidation(t *testing.T) {
 	// A second transformation must have its own entry.
 	other := strings.Replace(path, "32", "64", 1)
 	check(other, "1", true)
+	// A changed source is served stale once, then renders again.
 	mu.Lock()
 	generation = "2"
 	mu.Unlock()
+	check(path, "1", false)
 	check(path, "2", true)
+	check(other, "1", false)
 	check(other, "2", true)
 	check(path, "2", false)
 	mu.Lock()
 	metageneration = "2"
 	mu.Unlock()
+	check(path, "2", false)
 	check(path, "2", true)
 	check(path, "2", false)
 	bucket = "replacement-bucket"
+	check(path, "2", false)
 	check(path, "2", true)
 	// Private requests still fetch the source every time and never save results.
 	privatePath := "/etu/notes/id/image"
@@ -202,27 +212,60 @@ func TestPublicSourceInvalidation(t *testing.T) {
 		default:
 		}
 	}
-	// Cached results must not hide deletion or denied metadata access.
-	for _, status := range []int{http.StatusNotFound, http.StatusForbidden} {
-		mu.Lock()
-		metadataStatus = status
-		mu.Unlock()
-		w := get(path)
-		if w.Code == http.StatusOK || w.Header().Get("Cache-Control") != "private, no-store" {
-			t.Fatalf("served stale result on metadata status %d: %d", status, w.Code)
-		}
-		if status == http.StatusNotFound && w.Code != http.StatusNotFound {
-			t.Fatalf("deleted source: %d", w.Code)
+	// Denied metadata keeps the cached result; a deleted source is served once more.
+	mu.Lock()
+	metadataStatus = http.StatusForbidden
+	mu.Unlock()
+	for range 2 {
+		if w := get(path); w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), data["2"]) {
+			t.Fatalf("cached result during metadata outage: %d", w.Code)
 		}
 	}
-	// A replacement between metadata lookup and download must not store the new
-	// bytes under the old version's key. No timestamps are involved.
+	mu.Lock()
+	metadataStatus = http.StatusNotFound
+	mu.Unlock()
+	if w := get(path); w.Code != http.StatusOK {
+		t.Fatalf("last cached response for deleted source: %d", w.Code)
+	}
+	if w := get(path); w.Code != http.StatusNotFound || w.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("deleted source: %d %s", w.Code, w.Header())
+	}
+	// A replacement between metadata lookup and download must record the version
+	// that was actually read, so the next hit detects the newer one.
 	mu.Lock()
 	metadataStatus = http.StatusOK
 	generation, metageneration = "1", "3"
 	replaceDuringRead = true
 	mu.Unlock()
 	check(path, "1", true)
+	check(path, "1", false)
 	check(path, "2", true)
 	check(path, "2", false)
+}
+
+func TestRevalidationIsDedupedAndBounded(t *testing.T) {
+	release := make(chan struct{})
+	var calls atomic.Int32
+	s := newResultStorage(t.TempDir(), func(context.Context, string) (*sourceObject, error) {
+		calls.Add(1)
+		<-release
+		return nil, imagor.ErrNotFound
+	}, zap.NewNop())
+	keys := make([]string, cap(s.slots)+5)
+	for i := range keys {
+		keys[i] = "k" + strconv.Itoa(i)
+		if err := s.FileStorage.Put(t.Context(), keys[i]+versionSuffix, imagor.NewBlobFromBytes([]byte("photos/a.png\nb\n1\n1"))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.revalidate(keys[0])
+	s.revalidate(keys[0])
+	for _, key := range keys[1:] {
+		s.revalidate(key)
+	}
+	close(release)
+	s.wg.Wait()
+	if got := int(calls.Load()); got != cap(s.slots) {
+		t.Fatalf("revalidations = %d, want %d", got, cap(s.slots))
+	}
 }
