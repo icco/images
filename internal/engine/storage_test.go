@@ -2,9 +2,7 @@ package engine
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
 	"image"
 	"image/png"
 	"io"
@@ -13,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/option"
@@ -97,13 +94,5 @@ func TestGCSLoader(t *testing.T) {
 				t.Fatal("accepted unconfigured bucket")
 			}
 		})
-	}
-}
-
-func TestPruneCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	if err := pruneFiles(ctx, t.TempDir(), time.Time{}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("error = %v", err)
 	}
 }

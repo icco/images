@@ -15,9 +15,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -244,38 +242,58 @@ func TestSourceMapping(t *testing.T) {
 	}
 }
 
-func TestPrune(t *testing.T) {
-	dir := t.TempDir()
-	result := filepath.Join(dir, "result")
-	if err := os.MkdirAll(result, 0750); err != nil {
+func TestAgedResultIsStillServed(t *testing.T) {
+	l := &memoryLoader{data: map[string][]byte{"wallpapers/a.png": []byte("image")}}
+	cache := t.TempDir()
+	app := New(l, cache, 2, zap.NewNop())
+	app.Processors = []imagor.Processor{copyProcessor{}}
+	saved := make(chan struct{}, 1)
+	app.ResultStorages[0] = notifyingStorage{app.ResultStorages[0], saved}
+	if err := app.Startup(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"old", "new"} {
-		if err := os.WriteFile(filepath.Join(result, name), []byte(name), 0600); err != nil {
-			t.Fatal(err)
+	defer func() {
+		if err := app.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	}()
+	h := gateway.Handler{Processor: app, MediaKey: "test-key"}
+	get := func() {
+		t.Helper()
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), "GET", "/wallpapers/a.png?w=32", nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("response: %d %s", w.Code, w.Body.String())
 		}
 	}
-	old := time.Now().Add(-31 * 24 * time.Hour)
-	if err := os.Chtimes(filepath.Join(result, "old"), old, old); err != nil {
+	get()
+	select {
+	case <-saved:
+	case <-time.After(5 * time.Second):
+		t.Fatal("result not cached")
+	}
+	old := time.Now().Add(-365 * 24 * time.Hour)
+	root, err := os.OpenRoot(cache)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Prune(context.Background(), dir, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	var files []string
-	err := filepath.WalkDir(result, func(_ string, d fs.DirEntry, err error) error {
+	defer root.Close()
+	err = fs.WalkDir(root.FS(), ".", func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() {
-			files = append(files, d.Name())
-		}
-		return nil
+		return root.Chtimes(path, old, old)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(files, ",") != "new" {
-		t.Fatalf("remaining files: %v", files)
+	l.mu.Lock()
+	before := l.calls
+	l.mu.Unlock()
+	get()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.calls != before {
+		t.Fatal("year-old result was not served from disk")
 	}
 }
