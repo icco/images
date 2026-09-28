@@ -44,9 +44,15 @@ func source(key string) (string, string, error) {
 	return "", "", imagor.ErrInvalid
 }
 
-// Get implements imagor.Loader without arbitrary URL or bucket access.
-func (l GCSLoader) Get(r *http.Request, key string) (*imagor.Blob, error) {
-	ctx := r.Context()
+type sourceObject struct {
+	key    string
+	bucket string
+	object *storage.ObjectHandle
+	attrs  *storage.ObjectAttrs
+}
+
+func (l GCSLoader) resolve(ctx context.Context, key string) (*sourceObject, error) {
+	image := key
 	bucket, key, err := source(key)
 	if err != nil {
 		return nil, err
@@ -66,10 +72,24 @@ func (l GCSLoader) Get(r *http.Request, key string) (*imagor.Blob, error) {
 	if attrs.Size > 100<<20 {
 		return nil, imagor.ErrMaxSizeExceeded
 	}
-	// Read the exact object generation described by attrs.
-	object = object.Generation(attrs.Generation)
+	return &sourceObject{key: image, bucket: bucket, object: object.Generation(attrs.Generation), attrs: attrs}, nil
+}
+
+// Get implements imagor.Loader without arbitrary URL or bucket access.
+func (l GCSLoader) Get(r *http.Request, key string) (*imagor.Blob, error) {
+	ctx := r.Context()
+	source, ok := ctx.Value(sourceContextKey{}).(*sourceObject)
+	if !ok || source.key != key {
+		var err error
+		source, err = l.resolve(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+	}
+	attrs := source.attrs
 	blob := imagor.NewBlob(func() (io.ReadCloser, int64, error) {
-		reader, err := object.NewReader(ctx)
+		// Read the exact generation used for the public result cache key.
+		reader, err := source.object.NewReader(ctx)
 		if err != nil {
 			return nil, 0, err
 		}
