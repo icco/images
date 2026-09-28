@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/fs"
 	"net/http"
-	"os"
 	"strings"
-	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/cshum/imagor"
@@ -101,39 +98,4 @@ func (l GCSLoader) Get(r *http.Request, key string) (*imagor.Blob, error) {
 	})
 	blob.SetContentType(attrs.ContentType)
 	return blob, blob.Err()
-}
-
-func pruneFiles(ctx context.Context, dir string, cutoff time.Time) error {
-	root, err := os.OpenRoot(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		if info.ModTime().Before(cutoff) {
-			if err := root.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return err
-			}
-		}
-		return nil
-	})
 }

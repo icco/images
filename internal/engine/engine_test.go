@@ -10,14 +10,10 @@ import (
 	"image/color"
 	"image/gif"
 	"image/png"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -241,41 +237,5 @@ func TestSourceMapping(t *testing.T) {
 		if _, _, err := source(path); err == nil {
 			t.Fatalf("accepted %s", path)
 		}
-	}
-}
-
-func TestPrune(t *testing.T) {
-	dir := t.TempDir()
-	result := filepath.Join(dir, "result")
-	if err := os.MkdirAll(result, 0750); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"old", "new"} {
-		if err := os.WriteFile(filepath.Join(result, name), []byte(name), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	old := time.Now().Add(-31 * 24 * time.Hour)
-	if err := os.Chtimes(filepath.Join(result, "old"), old, old); err != nil {
-		t.Fatal(err)
-	}
-	if err := Prune(context.Background(), dir, time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	var files []string
-	err := filepath.WalkDir(result, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			files = append(files, d.Name())
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(files, ",") != "new" {
-		t.Fatalf("remaining files: %v", files)
 	}
 }

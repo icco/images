@@ -84,20 +84,6 @@ func run(ctx context.Context) error {
 			slog.Error("processor shutdown failed", "error", err)
 		}
 	}()
-	go func() {
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
-		for {
-			if err := engine.Prune(ctx, cache, time.Now()); err != nil && ctx.Err() == nil {
-				slog.Warn("cache cleanup failed", "error", err)
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
 	server := &http.Server{
 		Addr:              ":" + env("PORT", "8080"),
 		Handler:           gateway.Handler{Processor: app, MediaKey: key},
