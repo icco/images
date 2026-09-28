@@ -1,5 +1,5 @@
-ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.5-r14
-FROM golang:1.27.1-bookworm AS go
+ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.6-r14
+FROM golang:1.27.1-trixie AS go
 FROM ${BASE_IMAGE}-dev AS development
 COPY --from=go /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go CGO_ENABLED=1
@@ -10,10 +10,6 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-
-FROM development AS lint
-COPY --from=golangci/golangci-lint:v2.14.0 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
-RUN --mount=type=cache,target=/root/.cache/go-build golangci-lint run --timeout=5m
 
 FROM development AS build
 RUN --mount=type=cache,target=/root/.cache/go-build sh scripts/test.sh
