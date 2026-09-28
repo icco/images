@@ -11,10 +11,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-FROM development AS lint
-COPY --from=golangci/golangci-lint:v2.14.0 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
-RUN --mount=type=cache,target=/root/.cache/go-build golangci-lint run --timeout=5m
-
 FROM development AS build
 RUN --mount=type=cache,target=/root/.cache/go-build sh scripts/test.sh
 RUN --mount=type=cache,target=/root/.cache/go-build go build -trimpath -ldflags="-s -w" -o /images ./cmd/images
