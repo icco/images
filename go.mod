@@ -1,4 +1,4 @@
-module github.com/icco/images
+module go.icco.me/images
 
 go 1.26.7
 
