@@ -23,7 +23,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/cshum/imagor"
 	"github.com/cshum/imagor/imagorpath"
-	"github.com/icco/images/internal/gateway"
+	"go.icco.me/images/internal/gateway"
 	"go.uber.org/zap"
 	"google.golang.org/api/option"
 )

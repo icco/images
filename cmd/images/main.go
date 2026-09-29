@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/icco/images/internal/engine"
-	"github.com/icco/images/internal/gateway"
+	"go.icco.me/images/internal/engine"
+	"go.icco.me/images/internal/gateway"
 	"go.uber.org/zap"
 )
 

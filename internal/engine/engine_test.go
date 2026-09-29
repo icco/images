@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/cshum/imagor"
-	"github.com/icco/images/internal/gateway"
+	"go.icco.me/images/internal/gateway"
 	"go.uber.org/zap"
 )
 
