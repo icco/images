@@ -3,7 +3,7 @@ module go.icco.me/images
 go 1.26.7
 
 require (
-	cloud.google.com/go/storage v1.68.0
+	cloud.google.com/go/storage v1.69.0
 	github.com/cshum/imagor v1.9.6
 	go.uber.org/zap v1.28.0
 	google.golang.org/api v0.300.0
