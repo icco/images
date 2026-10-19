@@ -4,7 +4,7 @@ go 1.26.7
 
 require (
 	cloud.google.com/go/storage v1.69.0
-	github.com/cshum/imagor v1.9.7
+	github.com/cshum/imagor v1.9.9
 	go.uber.org/zap v1.28.0
 	google.golang.org/api v0.301.0
 )

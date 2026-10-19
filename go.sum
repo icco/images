@@ -32,8 +32,8 @@ github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UF
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 h1:aBangftG7EVZoUb69Os8IaYg++6uMOdKK83QtkkvJik=
 github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2/go.mod h1:qwXFYgsP6T7XnJtbKlf1HP8AjxZZyzxMmc+Lq5GjlU4=
-github.com/cshum/imagor v1.9.7 h1:ud9BdR7dGMjVcl9sudEFw9g9WnLPuB8YVD+WBHYjUuc=
-github.com/cshum/imagor v1.9.7/go.mod h1:EQRJYNXAP+1Q01zygZb8c82rni31/VJ1YU9A6j6cA6E=
+github.com/cshum/imagor v1.9.9 h1:rLsSIWQ8X4NZbQEhqfVyyxNKe4b+3LrfPnemEFY5kNk=
+github.com/cshum/imagor v1.9.9/go.mod h1:EQRJYNXAP+1Q01zygZb8c82rni31/VJ1YU9A6j6cA6E=
 github.com/cshum/vipsgen v1.3.11 h1:ieO5t28G/9GmvCALEGDjBSzS7KKBYLKEEECjHfCloIs=
 github.com/cshum/vipsgen v1.3.11/go.mod h1:AmCpW+vKfu16ZFPN/PBgtLsAl3kt7c0y2uA4bD5Lzk8=
 github.com/dgraph-io/ristretto/v2 v2.4.2 h1:x0cvjmUKxt764Yxdk2nr94we1AvPPAMh1rh5TQ+Jo80=
