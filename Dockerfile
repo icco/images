@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.6-r14
-FROM golang:1.27.2-trixie AS go
+FROM golang:1.27.3-trixie AS go
 FROM ${BASE_IMAGE}-dev AS development
 COPY --from=go /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/go/bin:$PATH GOPATH=/go CGO_ENABLED=1
@@ -17,6 +17,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -trimpath -ldflags=
 
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.source=https://github.com/icco/images
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=build /images /usr/local/bin/images
 ENV LD_LIBRARY_PATH=/opt/imagor/lib VIPS_WARNING=0 MALLOC_ARENA_MAX=2
 ENV FONTCONFIG_PATH=/etc/fonts XDG_CACHE_HOME=/tmp PORT=8080 CACHE_DIR=/cache
