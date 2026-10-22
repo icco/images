@@ -1,7 +1,8 @@
 name: Release
 on:
   push:
-    tags: [v*]
+    tags:
+      - v*
 permissions:
   contents: write
 jobs:
@@ -14,10 +15,10 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - uses: goreleaser/goreleaser-action@v7
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de
         with:
           distribution: goreleaser
-          version: ~> v2
+          version: v2.19.0
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
