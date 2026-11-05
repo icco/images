@@ -207,8 +207,8 @@ func TestPublicSourceInvalidation(t *testing.T) {
 		}
 		mu.Unlock()
 		select {
-		case <-saved:
-			t.Fatal("private result cached")
+		case err := <-saved:
+			t.Fatalf("private result cached: %v", err)
 		default:
 		}
 	}

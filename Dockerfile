@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.6-r14
+ARG BASE_IMAGE=ghcr.io/cshum/imagor-base:vips8.18.7-r20
 FROM golang:1.27.3-trixie AS go
 FROM ${BASE_IMAGE}-dev AS development
 COPY --from=go /usr/local/go /usr/local/go
