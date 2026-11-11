@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/storage v1.70.0
 	github.com/cshum/imagor v1.9.14
 	go.uber.org/zap v1.28.0
-	google.golang.org/api v0.308.0
+	google.golang.org/api v0.310.0
 )
 
 require (
