@@ -21,6 +21,8 @@ func New(loader imagor.Loader, cacheDir string, concurrency int64, logger *zap.L
 		app.Loaders = []imagor.Loader{loader}
 		app.Processors = []imagor.Processor{vipsprocessor.NewProcessor(
 			vipsprocessor.WithMaxResolution(80000000),
+			vipsprocessor.WithMaxWidth(20000),
+			vipsprocessor.WithMaxHeight(20000),
 			vipsprocessor.WithMaxAnimationFrames(200),
 			vipsprocessor.WithMaxFilterOps(10),
 		)}
@@ -35,7 +37,10 @@ func New(loader imagor.Loader, cacheDir string, concurrency int64, logger *zap.L
 		app.GetResultKey = resultKey
 		app.ProcessConcurrency = concurrency
 		app.ProcessQueueSize = 16 * concurrency
-		app.RequestTimeout = 45 * time.Second
+		// Sources stream lazily during processing, so slow GCS links need the full budget.
+		app.RequestTimeout = 90 * time.Second
+		app.LoadTimeout = 80 * time.Second
+		app.ProcessTimeout = 80 * time.Second
 		app.DisableParamsEndpoint = true
 		app.Logger = logger
 	})
