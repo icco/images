@@ -74,8 +74,17 @@ func TestNativeProcessingAndPrivateDeletion(t *testing.T) {
 	if err := gif.EncodeAll(&gifData, &gif.GIF{Image: []*image.Paletted{frame, second}, Delay: []int{10, 20}, LoopCount: 0}); err != nil {
 		t.Fatal(err)
 	}
+	// Both exceed imagor's default 9999px edge limit while staying under the 80MP cap.
+	encode := func(w, h int) []byte {
+		t.Helper()
+		var b bytes.Buffer
+		if err := png.Encode(&b, image.NewGray(image.Rect(0, 0, w, h))); err != nil {
+			t.Fatal(err)
+		}
+		return b.Bytes()
+	}
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32"><rect width="64" height="32" fill="red"/></svg>`)
-	l := &memoryLoader{data: map[string][]byte{"photos/a b+.png": pngData.Bytes(), "wallpapers/a.png": pngData.Bytes(), "photos/a.gif": gifData.Bytes(), "photos/a.svg": svg, "etu/notes/id/a.png": pngData.Bytes()}}
+	l := &memoryLoader{data: map[string][]byte{"photos/a b+.png": pngData.Bytes(), "wallpapers/a.png": pngData.Bytes(), "photos/a.gif": gifData.Bytes(), "photos/a.svg": svg, "etu/notes/id/a.png": pngData.Bytes(), "wallpapers/wide.png": encode(10240, 320), "wallpapers/tall.png": encode(320, 10240)}}
 	cache := t.TempDir()
 	app := New(l, cache, 2, zap.NewNop())
 	saved := make(chan struct{}, 20)
@@ -97,12 +106,17 @@ func TestNativeProcessingAndPrivateDeletion(t *testing.T) {
 		h.ServeHTTP(w, r)
 		return w
 	}
-	for _, tt := range []struct{ path, accept, contentType string }{
-		{"/photos/a%20b+.png?w=32&fm=png", "", "image/png"},
-		{"/wallpapers/a.png?w=32", "image/webp", "image/webp"},
-		{"/wallpapers/a.png?w=32", "", "image/jpeg"},
-		{"/photos/a.gif?w=32", "image/webp", "image/gif"},
-		{"/photos/a.svg?w=32", "", "image/svg+xml"},
+	for _, tt := range []struct {
+		path, accept, contentType string
+		width, height             int
+	}{
+		{"/photos/a%20b+.png?w=32&fm=png", "", "image/png", 32, 16},
+		{"/wallpapers/wide.png?w=32&fm=png", "", "image/png", 32, 1},
+		{"/wallpapers/tall.png?w=32&fm=png", "", "image/png", 32, 1024},
+		{"/wallpapers/a.png?w=32", "image/webp", "image/webp", 0, 0},
+		{"/wallpapers/a.png?w=32", "", "image/jpeg", 0, 0},
+		{"/photos/a.gif?w=32", "image/webp", "image/gif", 0, 0},
+		{"/photos/a.svg?w=32", "", "image/svg+xml", 0, 0},
 	} {
 		w := get(tt.path, tt.accept)
 		if w.Code != 200 || w.Header().Get("Content-Type") != tt.contentType {
@@ -113,7 +127,7 @@ func TestNativeProcessingAndPrivateDeletion(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if out.Bounds().Dx() != 32 || out.Bounds().Dy() != 16 {
+			if out.Bounds().Dx() != tt.width || out.Bounds().Dy() != tt.height {
 				t.Fatalf("wrong dimensions: %v", out.Bounds())
 			}
 		}
