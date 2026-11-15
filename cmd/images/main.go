@@ -92,7 +92,7 @@ func run(ctx context.Context) error {
 		Handler:           gateway.Handler{Processor: app, MediaKey: key},
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      50 * time.Second,
+		WriteTimeout:      100 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    16 << 10,
 	}
