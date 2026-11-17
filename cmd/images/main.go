@@ -77,7 +77,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("tracing init: %w", err)
 	}
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if err := shutdownTracing(shutdownCtx); err != nil {
 			slog.Warn("tracing shutdown failed", "error", err)
