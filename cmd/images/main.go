@@ -19,8 +19,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"go.icco.me/gutil/tracing"
 	"go.icco.me/images/internal/engine"
 	"go.icco.me/images/internal/gateway"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 )
 
@@ -69,6 +71,18 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = logger.Sync() }() // stderr may not support fsync.
+
+	shutdownTracing, err := tracing.Init(ctx, "images")
+	if err != nil {
+		return fmt.Errorf("tracing init: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			slog.Warn("tracing shutdown failed", "error", err)
+		}
+	}()
 	// Slots also wait on GCS downloads, so allow more than one per CPU.
 	concurrency := int64(4 * runtime.GOMAXPROCS(0))
 	if value := os.Getenv("PROCESS_CONCURRENCY"); value != "" {
@@ -87,9 +101,16 @@ func run(ctx context.Context) error {
 			slog.Error("processor shutdown failed", "error", err)
 		}
 	}()
+	handler := otelhttp.NewHandler(
+		gateway.Handler{Processor: app, MediaKey: key},
+		"images",
+		otelhttp.WithFilter(func(req *http.Request) bool {
+			return req.URL.Path != "/metrics" && req.URL.Path != "/healthz"
+		}),
+	)
 	server := &http.Server{
 		Addr:              ":" + env("PORT", "8080"),
-		Handler:           gateway.Handler{Processor: app, MediaKey: key},
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      100 * time.Second,
